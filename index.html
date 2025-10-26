@@ -44,6 +44,11 @@
       color: #fff;
       transform: scale(1.05);
     }
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
     button.hidden { display: none; }
     #map {
       height: 70vh;
@@ -52,6 +57,22 @@
       border-radius: 15px;
       box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
       overflow: hidden;
+      background: #1d2c4d;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #8ec3b9;
+    }
+    #status {
+      margin: 20px auto;
+      padding: 15px;
+      max-width: 500px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      font-size: 14px;
+    }
+    .loading {
+      font-size: 18px;
     }
     footer {
       text-align: center;
@@ -63,99 +84,248 @@
 </head>
 <body>
   <header>🚌 Bus Live Tracker</header>
+  
+  <div id="status" class="loading">Loading map...</div>
+  
   <div id="controls">
-    <button id="startBtn">Start Sharing My Location</button>
+    <button id="startBtn" disabled>Start Sharing My Location</button>
     <button id="shareBtn" class="hidden">Share Link</button>
     <button id="stopBtn" class="hidden">Stop Sharing</button>
   </div>
-  <div id="map"></div>
+  
+  <div id="map">Initializing map...</div>
+  
   <footer>© 2025 Bus Tracker | Simple and Fast</footer>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
     import { getDatabase, ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
 
-    // Initialize Firebase (replace with your Firebase config)
+    // Global variables
+    let map, marker, watchId, trackingId;
+    let googleMapsLoaded = false;
+    let firebaseReady = false;
+
+    // Initialize Firebase
     const firebaseConfig = {
       apiKey: "AIzaSyAnDRhdEvaZTPlJr9rmmB7VLn8xUh_E22U",
       authDomain: "buslive-d984a.firebaseapp.com",
+      databaseURL: "https://buslive-d984a-default-rtdb.firebaseio.com",
       projectId: "buslive-d984a",
       storageBucket: "buslive-d984a.firebasestorage.app",
       messagingSenderId: "653217528392",
       appId: "1:653217528392:web:da87e353dba5a67c59367d",
       measurementId: "G-RN7XG4R2KF"
     };
-    const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
 
-    let map, marker, watchId, trackingId;
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const viewId = urlParams.get("track"); // if passenger link
-
-    function initMap(lat = 23.588, lng = 58.382) {
-      map = new google.maps.Map(document.getElementById("map"), {
-        center: { lat, lng },
-        zoom: 14,
-        styles: [
-          { elementType: 'geometry', stylers: [{ color: '#1d2c4d' }] },
-          { elementType: 'labels.text.fill', stylers: [{ color: '#8ec3b9' }] },
-          { elementType: 'labels.text.stroke', stylers: [{ color: '#1a3646' }] },
-          { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#304a7d' }] },
-          { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#17263c' }] }
-        ]
-      });
-      marker = new google.maps.Marker({ position: { lat, lng }, map, icon: 'https://maps.google.com/mapfiles/ms/icons/bus.png' });
+    let app, db;
+    
+    try {
+      app = initializeApp(firebaseConfig);
+      db = getDatabase(app);
+      firebaseReady = true;
+      updateStatus("Firebase connected ✓");
+    } catch (error) {
+      updateStatus("Firebase error: " + error.message, true);
+      console.error("Firebase initialization error:", error);
     }
 
+    const urlParams = new URLSearchParams(window.location.search);
+    const viewId = urlParams.get("track");
+
+    function updateStatus(message, isError = false) {
+      const statusEl = document.getElementById("status");
+      statusEl.textContent = message;
+      statusEl.style.background = isError ? 'rgba(255, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.1)';
+    }
+
+    function initMap(lat = 23.588, lng = 58.382) {
+      if (!googleMapsLoaded) {
+        console.error("Google Maps not loaded yet");
+        return;
+      }
+
+      try {
+        map = new google.maps.Map(document.getElementById("map"), {
+          center: { lat, lng },
+          zoom: 14,
+          styles: [
+            { elementType: 'geometry', stylers: [{ color: '#1d2c4d' }] },
+            { elementType: 'labels.text.fill', stylers: [{ color: '#8ec3b9' }] },
+            { elementType: 'labels.text.stroke', stylers: [{ color: '#1a3646' }] },
+            { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#304a7d' }] },
+            { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#17263c' }] }
+          ]
+        });
+
+        marker = new google.maps.Marker({
+          position: { lat, lng },
+          map,
+          icon: 'https://maps.google.com/mapfiles/ms/icons/bus.png',
+          title: 'Bus Location'
+        });
+
+        updateStatus("Map ready ✓");
+        return true;
+      } catch (error) {
+        updateStatus("Map initialization error: " + error.message, true);
+        console.error("Map error:", error);
+        return false;
+      }
+    }
+
+    function updateMapLocation(lat, lng) {
+      if (map && marker) {
+        const position = { lat, lng };
+        marker.setPosition(position);
+        map.setCenter(position);
+      } else if (googleMapsLoaded) {
+        initMap(lat, lng);
+      }
+    }
+
+    // Callback for Google Maps API
+    window.initGoogleMaps = function() {
+      googleMapsLoaded = true;
+      updateStatus("Google Maps loaded ✓");
+      
+      if (!viewId) {
+        document.getElementById("startBtn").disabled = false;
+        initMap(); // Initialize with default location
+      }
+    };
+
+    // Passenger View Mode
     if (viewId) {
       document.getElementById("controls").style.display = "none";
-      onValue(ref(db, `tracks/${viewId}`), (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-          const { lat, lng } = data;
-          if (!map) initMap(lat, lng);
-          marker.setPosition({ lat, lng });
-          map.setCenter({ lat, lng });
-        } else {
-          alert("Tracking ended.");
-        }
-      });
-    } else {
+      updateStatus("Connecting to tracking session...");
+
+      if (firebaseReady) {
+        onValue(ref(db, `tracks/${viewId}`), (snapshot) => {
+          const data = snapshot.val();
+          if (data && data.lat && data.lng) {
+            const { lat, lng } = data;
+            updateMapLocation(lat, lng);
+            updateStatus("📍 Tracking active - Last update: " + new Date().toLocaleTimeString());
+          } else {
+            updateStatus("⚠️ Tracking ended by driver", true);
+            document.getElementById("map").innerHTML = '<div style="padding: 40px;">Tracking has ended</div>';
+          }
+        }, (error) => {
+          updateStatus("Error: " + error.message, true);
+          console.error("Firebase read error:", error);
+        });
+      }
+    } 
+    // Driver Mode
+    else {
       document.getElementById("startBtn").addEventListener("click", () => {
+        if (!navigator.geolocation) {
+          updateStatus("❌ Geolocation not supported by your browser", true);
+          return;
+        }
+
         trackingId = Math.random().toString(36).substring(2, 10);
+        
         document.getElementById("shareBtn").classList.remove("hidden");
         document.getElementById("stopBtn").classList.remove("hidden");
         document.getElementById("startBtn").classList.add("hidden");
 
-        if (navigator.geolocation) {
-          watchId = navigator.geolocation.watchPosition((pos) => {
+        updateStatus("📡 Starting location tracking...");
+
+        watchId = navigator.geolocation.watchPosition(
+          (pos) => {
             const { latitude, longitude } = pos.coords;
-            if (!map) initMap(latitude, longitude);
-            marker.setPosition({ lat: latitude, lng: longitude });
-            map.setCenter({ lat: latitude, lng: longitude });
-            set(ref(db, `tracks/${trackingId}`), { lat: latitude, lng: longitude });
-          });
-        } else {
-          alert("Geolocation not supported.");
-        }
+            
+            updateMapLocation(latitude, longitude);
+            
+            if (firebaseReady) {
+              set(ref(db, `tracks/${trackingId}`), {
+                lat: latitude,
+                lng: longitude,
+                timestamp: Date.now()
+              }).then(() => {
+                updateStatus("✓ Sharing location - Last update: " + new Date().toLocaleTimeString());
+              }).catch((error) => {
+                updateStatus("Error updating location: " + error.message, true);
+                console.error("Firebase write error:", error);
+              });
+            }
+          },
+          (error) => {
+            let errorMsg = "Location error: ";
+            switch(error.code) {
+              case error.PERMISSION_DENIED:
+                errorMsg += "Permission denied. Please allow location access.";
+                break;
+              case error.POSITION_UNAVAILABLE:
+                errorMsg += "Position unavailable.";
+                break;
+              case error.TIMEOUT:
+                errorMsg += "Request timed out.";
+                break;
+              default:
+                errorMsg += error.message;
+            }
+            updateStatus(errorMsg, true);
+            console.error("Geolocation error:", error);
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+          }
+        );
       });
 
       document.getElementById("shareBtn").addEventListener("click", () => {
         const link = `${window.location.origin}${window.location.pathname}?track=${trackingId}`;
-        navigator.clipboard.writeText(link);
-        alert("Tracking link copied to clipboard:\n" + link);
+        
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(link).then(() => {
+            alert("✓ Tracking link copied to clipboard!\n\nShare this link with passengers:\n" + link);
+          }).catch(() => {
+            prompt("Copy this link:", link);
+          });
+        } else {
+          prompt("Copy this link:", link);
+        }
       });
 
       document.getElementById("stopBtn").addEventListener("click", () => {
-        if (watchId) navigator.geolocation.clearWatch(watchId);
-        remove(ref(db, `tracks/${trackingId}`));
-        alert("Stopped sharing location.");
-        window.location.reload();
+        if (watchId) {
+          navigator.geolocation.clearWatch(watchId);
+          watchId = null;
+        }
+        
+        if (firebaseReady && trackingId) {
+          remove(ref(db, `tracks/${trackingId}`)).then(() => {
+            updateStatus("Stopped sharing location");
+            setTimeout(() => {
+              window.location.reload();
+            }, 1500);
+          }).catch((error) => {
+            console.error("Error stopping tracking:", error);
+            window.location.reload();
+          });
+        } else {
+          window.location.reload();
+        }
       });
     }
+
+    // Handle Google Maps API load error
+    window.gm_authFailure = function() {
+      updateStatus("❌ Google Maps API key error - Check your API key", true);
+      document.getElementById("map").innerHTML = '<div style="padding: 40px;">Google Maps failed to load. Check API key.</div>';
+    };
+
   </script>
 
-  <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBfYvGqnZ9J3g0ufEHkvV_tgyUgd5rl43Y"></script>
+  <!-- Load Google Maps with callback -->
+  <script async defer 
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBfYvGqnZ9J3g0ufEHkvV_tgyUgd5rl43Y&callback=initGoogleMaps"
+    onerror="document.getElementById('status').textContent='❌ Failed to load Google Maps'; document.getElementById('status').style.background='rgba(255,0,0,0.2)';">
+  </script>
 </body>
 </html>
