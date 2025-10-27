@@ -6,7 +6,6 @@
   <title>Bus Live Tracker</title>
   <link rel="icon" href="data:," />
   <style>
-    /* --- Layout & theme --- */
     :root{--glass: rgba(255,255,255,0.12);--glass-strong: rgba(255,255,255,0.16)}
     html,body{height:100%;margin:0;font-family:Poppins,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial}
     body{
@@ -17,12 +16,26 @@
       display:flex;align-items:center;gap:10px;justify-content:center;letter-spacing:0.6px;
     }
 
-    /* Map container */
     #map {
       flex:1;min-height:420px;border-radius:16px;margin:18px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,0.45);
+      position:relative;
     }
 
-    /* loader and overlay */
+    /* Status banner for passengers */
+    #status-banner {
+      position:absolute;top:20px;left:50%;transform:translateX(-50%);z-index:10;
+      background:linear-gradient(180deg, rgba(0,0,0,0.7), rgba(0,0,0,0.85));
+      padding:12px 20px;border-radius:25px;backdrop-filter:blur(8px);
+      display:none;align-items:center;gap:10px;font-size:14px;font-weight:600;
+      box-shadow:0 4px 20px rgba(0,0,0,0.4);
+    }
+    #status-banner.show {display:flex}
+    .status-dot {
+      width:8px;height:8px;border-radius:50%;background:#00ff88;
+      animation:pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+
     #loader{
       position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:56px;height:56px;border-radius:50%;
       border:6px solid rgba(255,255,255,0.2);border-top-color:#fff;animation:spin 0.9s linear infinite;z-index:40;
@@ -32,44 +45,52 @@
     #message {
       position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
       background:linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0.55));
-      padding:22px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.6);max-width:92%;text-align:center;z-index:50;
-      display:none;
+      padding:22px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.6);max-width:90%;text-align:center;z-index:50;
+      display:none;backdrop-filter:blur(10px);
     }
-    #message p{margin:0 0 12px;font-size:15px}
-    .msg-btn{border:none;padding:10px 14px;border-radius:10px;font-weight:600;cursor:pointer}
+    #message.show{display:block}
+    #message p{margin:0 0 16px;font-size:15px;line-height:1.5}
+    .msg-btn{border:none;padding:10px 16px;border-radius:10px;font-weight:600;cursor:pointer;font-size:14px}
 
-    /* controls */
     #controls{
       position:fixed;left:50%;transform:translateX(-50%);bottom:26px;display:flex;gap:12px;padding:10px 18px;border-radius:999px;
       background:linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));backdrop-filter:blur(8px);z-index:45;
-      box-shadow:0 8px 30px rgba(0,0,0,0.45)
+      box-shadow:0 8px 30px rgba(0,0,0,0.45);
     }
-    button{cursor:pointer;border:none;padding:12px 18px;border-radius:28px;font-weight:700}
+    button{cursor:pointer;border:none;padding:12px 18px;border-radius:28px;font-weight:700;font-size:14px;transition:transform 0.2s}
+    button:hover{transform:scale(1.05)}
+    button:active{transform:scale(0.98)}
     .btn-primary{background:linear-gradient(90deg,#00c6ff,#0078ff);color:#fff}
     .btn-danger{background:linear-gradient(90deg,#ff416c,#ff4b2b);color:#fff}
-    .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,0.12);color:#fff}
+    .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,0.3);color:#fff}
 
     .hidden{display:none !important}
     footer{padding:12px;text-align:center;font-size:13px;background:rgba(0,0,0,0.12)}
-    /* small responsive tweaks */
+    
     @media (max-width:480px){
       header{font-size:18px;padding:14px}
-      #controls{gap:8px;padding:8px 12px}
-      button{padding:10px 12px;font-size:14px}
+      #controls{gap:8px;padding:8px 12px;bottom:16px}
+      button{padding:10px 14px;font-size:13px}
+      #map{margin:12px;min-height:380px}
+      #status-banner{font-size:12px;padding:10px 16px}
     }
   </style>
 </head>
 <body>
   <header>🚌 <span>Bus Live Tracker</span></header>
 
-  <div id="map" aria-hidden="false"></div>
-  <div id="loader" style="display:none;"></div>
-
-  <div id="message" role="alert" aria-live="polite">
-    <p id="message-text"></p>
-    <div style="display:flex;gap:10px;justify-content:center">
-      <button id="retryBtn" class="msg-btn btn-primary">Retry Location</button>
-      <button id="showInfoBtn" class="msg-btn btn-ghost">Why Location?</button>
+  <div id="map">
+    <div id="loader"></div>
+    <div id="status-banner">
+      <span class="status-dot"></span>
+      <span id="status-text">Waiting for driver...</span>
+    </div>
+    <div id="message">
+      <p id="message-text"></p>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        <button id="retryBtn" class="msg-btn btn-primary">Try Again</button>
+        <button id="closeBtn" class="msg-btn btn-ghost">Close</button>
+      </div>
     </div>
   </div>
 
@@ -79,15 +100,12 @@
     <button id="stopBtn" class="btn-danger hidden">Stop Sharing</button>
   </div>
 
-  <footer>© 2025 Bus Tracker | Smooth, Simple & Secure</footer>
+  <footer>© 2025 Bus Tracker | Simple & Secure</footer>
 
-  <!-- Firebase (module imports) + app logic -->
   <script type="module">
-    // --- Firebase v10 modular imports ---
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
     import { getDatabase, ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
 
-    // ---- YOUR FIREBASE CONFIG (kept from your file) ----
     const firebaseConfig = {
       apiKey: "AIzaSyAnDRhdEvaZTPlJr9rmmB7VLn8xUh_E22U",
       authDomain: "buslive-d984a.firebaseapp.com",
@@ -102,7 +120,7 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    // --- DOM elements ---
+    // DOM
     const loader = document.getElementById('loader');
     const controls = document.getElementById('controls');
     const startBtn = document.getElementById('startBtn');
@@ -111,32 +129,40 @@
     const messageBox = document.getElementById('message');
     const messageText = document.getElementById('message-text');
     const retryBtn = document.getElementById('retryBtn');
-    const showInfoBtn = document.getElementById('showInfoBtn');
+    const closeBtn = document.getElementById('closeBtn');
+    const statusBanner = document.getElementById('status-banner');
+    const statusText = document.getElementById('status-text');
 
-    // --- State ---
+    // State
     let map = null;
     let marker = null;
     let watchId = null;
     let trackingId = null;
+    let isMapReady = false;
 
-    // Get URL param to determine passenger mode
     const urlParams = new URLSearchParams(window.location.search);
     const viewId = urlParams.get('track');
-
-    // Default starting coords (Oman-ish) if needed
     const DEFAULT_LAT = 23.588;
     const DEFAULT_LNG = 58.382;
 
-    // Create a global initMap so Google Maps callback can call it
-    function initMap(lat = DEFAULT_LAT, lng = DEFAULT_LNG) {
-      // hide message if visible
-      hideMessage();
+    // Initialize map (called by Google Maps callback)
+    function initGoogleMap() {
+      isMapReady = true;
+      
+      if (viewId) {
+        // Passenger mode - show status banner and start listening
+        statusBanner.classList.add('show');
+        listenToDriverLocation();
+      } else {
+        // Driver mode - initialize with default location
+        createMap(DEFAULT_LAT, DEFAULT_LNG);
+        loader.style.display = 'none';
+      }
+    }
+    window.initMap = initGoogleMap;
 
-      // hide loader if showing
-      loader.style.display = 'none';
-
+    function createMap(lat, lng) {
       if (!map) {
-        // create the map with dark styling (your chosen style B)
         map = new google.maps.Map(document.getElementById('map'), {
           center: { lat, lng },
           zoom: 14,
@@ -150,7 +176,6 @@
           ]
         });
 
-        // marker with bus icon
         marker = new google.maps.Marker({
           position: { lat, lng },
           map,
@@ -158,169 +183,178 @@
           title: 'Bus Location'
         });
       } else {
-        // update map if it exists
         map.setCenter({ lat, lng });
         marker.setPosition({ lat, lng });
       }
     }
-    // expose globally for Google Maps callback
-    window.initMap = initMap;
 
-    // Utility: show friendly message overlay
+    function updateLocation(lat, lng) {
+      if (!map) {
+        createMap(lat, lng);
+      } else {
+        marker.setPosition({ lat, lng });
+        map.panTo({ lat, lng });
+      }
+    }
+
     function showMessage(text) {
       messageText.textContent = text;
-      messageBox.style.display = 'block';
-      document.getElementById('map').style.filter = 'blur(3px)';
-    }
-    function hideMessage() {
-      messageBox.style.display = 'none';
-      document.getElementById('map').style.filter = 'none';
+      messageBox.classList.add('show');
     }
 
-    // Passenger flow: if viewId is present, hide controls and just listen to Firebase for that track
-    if (viewId) {
-      controls.style.display = 'none';
-      loader.style.display = 'block'; // show loader while waiting first point
+    function hideMessage() {
+      messageBox.classList.remove('show');
+    }
+
+    // Passenger mode: listen to driver location
+    function listenToDriverLocation() {
+      let firstUpdate = true;
+      
       onValue(ref(db, `tracks/${viewId}`), (snapshot) => {
         const data = snapshot.val();
+        
         if (data && data.lat !== undefined && data.lng !== undefined) {
           const { lat, lng } = data;
-          if (!map) initMap(lat, lng);
-          marker.setPosition({ lat, lng });
-          map.panTo({ lat, lng });
+          
+          if (firstUpdate) {
+            loader.style.display = 'none';
+            statusText.textContent = 'Bus is live';
+            firstUpdate = false;
+          }
+          
+          updateLocation(lat, lng);
         } else {
-          // tracking ended or doesn't exist
-          alert('Tracking ended or invalid link.');
+          // No data or tracking ended
           loader.style.display = 'none';
+          statusBanner.classList.remove('show');
+          showMessage('Tracking has ended or the link is invalid. Please ask the driver for a new link.');
         }
       }, (err) => {
-        console.error('Firebase read error', err);
-        alert('Unable to read tracking data.');
+        console.error('Firebase error:', err);
         loader.style.display = 'none';
+        statusBanner.classList.remove('show');
+        showMessage('Unable to connect to tracking. Please check your internet connection and try refreshing the page.');
       });
-    } else {
-      // Driver mode (show controls)
-      // Start Sharing
-      startBtn.addEventListener('click', async () => {
-        // generate a short id
-        trackingId = Math.random().toString(36).slice(2, 10);
+    }
 
-        // update UI
+    // Driver mode setup
+    if (!viewId) {
+      startBtn.addEventListener('click', () => {
+        trackingId = Math.random().toString(36).slice(2, 10);
+        
+        startBtn.classList.add('hidden');
         shareBtn.classList.remove('hidden');
         stopBtn.classList.remove('hidden');
-        startBtn.classList.add('hidden');
 
-        // Request geolocation and begin watching position
         if (!('geolocation' in navigator)) {
-          showMessage('Your device does not support geolocation.');
+          showMessage('Your device does not support location services. Please use a different device.');
           return;
         }
 
-        // show loader while waiting first position
         loader.style.display = 'block';
-        try {
-          watchId = navigator.geolocation.watchPosition(async (pos) => {
-            const latitude = pos.coords.latitude;
-            const longitude = pos.coords.longitude;
 
-            // initialize map on first fix
-            if (!map) initMap(latitude, longitude);
+        watchId = navigator.geolocation.watchPosition(
+          async (pos) => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
 
-            // update marker + map
-            marker.setPosition({ lat: latitude, lng: longitude });
-            map.panTo({ lat: latitude, lng: longitude });
-
-            // push to firebase
-            try {
-              await set(ref(db, `tracks/${trackingId}`), { lat: latitude, lng: longitude, ts: Date.now() });
-            } catch (e) {
-              console.error('Firebase write failed', e);
-            } finally {
-              loader.style.display = 'none';
-            }
-          }, (err) => {
-            // handle geolocation errors
+            updateLocation(lat, lng);
             loader.style.display = 'none';
-            console.warn('geolocation error', err);
-            if (err.code === 1) { // PERMISSION_DENIED
-              showMessage('Location permission denied. The driver must allow location access to share live position. Use Retry to try again.');
-            } else if (err.code === 2) {
-              showMessage('Unable to determine location. Make sure GPS is enabled and you have a good signal.');
-            } else {
-              showMessage('Location error. Please try again.');
+
+            try {
+              await set(ref(db, `tracks/${trackingId}`), { 
+                lat, 
+                lng, 
+                ts: Date.now() 
+              });
+            } catch (e) {
+              console.error('Firebase write error:', e);
             }
-          }, {
+          },
+          (err) => {
+            loader.style.display = 'none';
+            console.error('Geolocation error:', err);
+            
+            let errorMsg = 'Unable to access your location. ';
+            
+            if (err.code === 1) {
+              errorMsg += 'Please allow location permission in your browser settings and try again.';
+            } else if (err.code === 2) {
+              errorMsg += 'Make sure GPS is enabled and you have a clear view of the sky.';
+            } else {
+              errorMsg += 'Please check your device settings and try again.';
+            }
+            
+            showMessage(errorMsg);
+          },
+          {
             enableHighAccuracy: true,
             maximumAge: 1000,
             timeout: 20000
-          });
-        } catch (e) {
-          console.error(e);
-          loader.style.display = 'none';
-          showMessage('Unable to start location sharing.');
-        }
+          }
+        );
       });
 
-      // Share button - copies tracking link
       shareBtn.addEventListener('click', async () => {
         const link = `${window.location.origin}${window.location.pathname}?track=${trackingId}`;
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-          try {
+        
+        try {
+          if (navigator.share) {
+            await navigator.share({
+              title: 'Track My Bus',
+              text: 'Follow my live location',
+              url: link
+            });
+          } else if (navigator.clipboard) {
             await navigator.clipboard.writeText(link);
-            alert('Tracking link copied! Share it with your passengers:\n' + link);
-          } catch (e) {
-            // fallback
+            alert('Link copied! Share it with passengers:\n\n' + link);
+          } else {
             prompt('Copy this link:', link);
           }
-        } else {
-          prompt('Copy this link:', link);
+        } catch (e) {
+          if (e.name !== 'AbortError') {
+            prompt('Copy this link:', link);
+          }
         }
       });
 
-      // Stop sharing
       stopBtn.addEventListener('click', async () => {
         if (watchId) {
           navigator.geolocation.clearWatch(watchId);
           watchId = null;
         }
+        
         if (trackingId) {
           try {
             await remove(ref(db, `tracks/${trackingId}`));
           } catch (e) {
-            console.warn('Error removing tracking node', e);
+            console.warn('Error removing track:', e);
           }
           trackingId = null;
         }
-        alert('Stopped sharing location.');
-        window.location.reload();
+        
+        alert('Location sharing stopped.');
+        location.reload();
       });
 
-      // Retry button when permission denied or other geolocation issues
       retryBtn.addEventListener('click', () => {
         hideMessage();
-        // If driver has started sharing, re-trigger Start Sharing behavior
-        if (startBtn.classList.contains('hidden') && trackingId) {
-          // simulate click on start (re-init geolocation)
-          startBtn.classList.remove('hidden');
-          shareBtn.classList.add('hidden');
-          stopBtn.classList.add('hidden');
-          // reload page to reset flow (simplest reliable path)
-          window.location.reload();
-        } else {
-          // otherwise simulate start button click to request permission again
-          startBtn.click();
-        }
+        location.reload();
       });
 
-      // Info button to explain why location is needed
-      showInfoBtn.addEventListener('click', () => {
-        alert('This app needs your location to share the bus live position with passengers. No accounts are required—only your permission to read GPS. You can stop sharing anytime.');
+      closeBtn.addEventListener('click', () => {
+        hideMessage();
+      });
+    } else {
+      // Passenger mode - hide controls
+      controls.style.display = 'none';
+      
+      closeBtn.addEventListener('click', () => {
+        hideMessage();
       });
     }
   </script>
 
-  <!-- Google Maps script -->
-  <!-- NOTE: callback=initMap calls the global function we expose above (window.initMap) -->
   <script async defer
     src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBfYvGqnZ9J3g0ufEHkvV_tgyUgd5rl43Y&callback=initMap">
   </script>
