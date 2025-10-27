@@ -25,7 +25,6 @@
       position:relative;
     }
 
-    /* Status banner for passengers */
     #status-banner {
       position:absolute;top:20px;left:50%;transform:translateX(-50%);z-index:1000;
       background:linear-gradient(180deg, rgba(0,0,0,0.7), rgba(0,0,0,0.85));
@@ -64,6 +63,7 @@
     button{cursor:pointer;border:none;padding:12px 18px;border-radius:28px;font-weight:700;font-size:14px;transition:transform 0.2s}
     button:hover{transform:scale(1.05)}
     button:active{transform:scale(0.98)}
+    button:disabled{opacity:0.5;cursor:not-allowed;transform:none}
     .btn-primary{background:linear-gradient(90deg,#00c6ff,#0078ff);color:#fff}
     .btn-danger{background:linear-gradient(90deg,#ff416c,#ff4b2b);color:#fff}
     .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,0.3);color:#fff}
@@ -71,7 +71,6 @@
     .hidden{display:none !important}
     footer{padding:12px;text-align:center;font-size:13px;background:rgba(0,0,0,0.12)}
     
-    /* Custom bus marker */
     .bus-marker {
       background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
       width: 40px;
@@ -120,12 +119,11 @@
 
   <footer>© 2025 Bus Tracker | Simple & Secure | Powered by OpenStreetMap</footer>
 
-  <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-    import { getDatabase, ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
+    import { getDatabase, ref, set, onValue, remove, off } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyAnDRhdEvaZTPlJr9rmmB7VLn8xUh_E22U",
@@ -159,6 +157,9 @@
     let marker = null;
     let watchId = null;
     let trackingId = null;
+    let dbListener = null;
+    let lastUpdateTime = 0;
+    const UPDATE_THROTTLE = 2000; // Throttle updates to every 2 seconds
 
     const urlParams = new URLSearchParams(window.location.search);
     const viewId = urlParams.get('track');
@@ -180,20 +181,24 @@
           map = L.map('map', {
             center: [lat, lng],
             zoom: 14,
-            zoomControl: true
+            zoomControl: true,
+            attributionControl: true
           });
 
-          // Add OpenStreetMap tiles
           L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors',
             maxZoom: 19
           }).addTo(map);
 
-          // Add bus marker
           marker = L.marker([lat, lng], { icon: busIcon }).addTo(map);
           marker.bindPopup('🚌 Bus Location');
 
           loader.style.display = 'none';
+          
+          // Force map to recalculate size after creation
+          setTimeout(() => {
+            if (map) map.invalidateSize();
+          }, 100);
         } catch (e) {
           console.error('Map creation error:', e);
           loader.style.display = 'none';
@@ -201,16 +206,24 @@
         }
       } else {
         map.setView([lat, lng], map.getZoom());
-        marker.setLatLng([lat, lng]);
+        if (marker) {
+          marker.setLatLng([lat, lng]);
+        }
       }
     }
 
-    function updateLocation(lat, lng) {
+    function updateLocation(lat, lng, smooth = true) {
       if (!map) {
         createMap(lat, lng);
       } else {
-        marker.setLatLng([lat, lng]);
-        map.panTo([lat, lng]);
+        if (marker) {
+          marker.setLatLng([lat, lng]);
+        }
+        if (smooth) {
+          map.panTo([lat, lng], { animate: true, duration: 0.5 });
+        } else {
+          map.setView([lat, lng], map.getZoom());
+        }
       }
     }
 
@@ -223,7 +236,40 @@
       messageBox.classList.remove('show');
     }
 
-    // Initialize map immediately
+    // Throttled database update function
+    async function throttledDbUpdate(lat, lng) {
+      const now = Date.now();
+      if (now - lastUpdateTime < UPDATE_THROTTLE) {
+        return; // Skip update if too soon
+      }
+      
+      lastUpdateTime = now;
+      
+      try {
+        await set(ref(db, `tracks/${trackingId}`), { 
+          lat, 
+          lng, 
+          ts: now 
+        });
+      } catch (e) {
+        console.error('Firebase write error:', e);
+      }
+    }
+
+    // Cleanup function
+    function cleanup() {
+      if (watchId) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+      }
+      
+      if (dbListener) {
+        off(dbListener);
+        dbListener = null;
+      }
+    }
+
+    // Initialize
     if (viewId) {
       // Passenger mode
       statusBanner.classList.add('show');
@@ -231,20 +277,45 @@
       loader.style.display = 'block';
       
       let firstUpdate = true;
+      let staleTimeout = null;
+      const STALE_THRESHOLD = 60000; // 60 seconds
       
-      onValue(ref(db, `tracks/${viewId}`), (snapshot) => {
+      dbListener = ref(db, `tracks/${viewId}`);
+      
+      onValue(dbListener, (snapshot) => {
         const data = snapshot.val();
         
+        // Clear stale timeout
+        if (staleTimeout) {
+          clearTimeout(staleTimeout);
+          staleTimeout = null;
+        }
+        
         if (data && data.lat !== undefined && data.lng !== undefined) {
-          const { lat, lng } = data;
+          const { lat, lng, ts } = data;
+          
+          // Check if data is stale
+          const now = Date.now();
+          const dataAge = ts ? now - ts : 0;
+          
+          if (dataAge > STALE_THRESHOLD) {
+            statusText.textContent = 'Bus location may be outdated';
+          } else {
+            statusText.textContent = 'Bus is live';
+          }
           
           if (firstUpdate) {
             loader.style.display = 'none';
-            statusText.textContent = 'Bus is live';
             firstUpdate = false;
           }
           
-          updateLocation(lat, lng);
+          updateLocation(lat, lng, !firstUpdate);
+          
+          // Set timeout to mark as stale
+          staleTimeout = setTimeout(() => {
+            statusText.textContent = 'Bus location may be outdated';
+          }, STALE_THRESHOLD);
+          
         } else {
           loader.style.display = 'none';
           statusBanner.classList.remove('show');
@@ -257,23 +328,24 @@
         showMessage('Unable to connect to tracking. Please check your internet connection and try refreshing the page.');
       });
     } else {
-      // Driver mode - create map with default location
+      // Driver mode
       createMap(DEFAULT_LAT, DEFAULT_LNG);
     }
 
     // Driver mode controls
     if (!viewId) {
       startBtn.addEventListener('click', () => {
-        trackingId = Math.random().toString(36).slice(2, 10);
-        
-        startBtn.classList.add('hidden');
-        shareBtn.classList.remove('hidden');
-        stopBtn.classList.remove('hidden');
-
         if (!('geolocation' in navigator)) {
           showMessage('Your device does not support location services. Please use a different device.');
           return;
         }
+
+        trackingId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        
+        startBtn.classList.add('hidden');
+        startBtn.disabled = true;
+        shareBtn.classList.remove('hidden');
+        stopBtn.classList.remove('hidden');
 
         loader.style.display = 'block';
 
@@ -285,15 +357,7 @@
             updateLocation(lat, lng);
             loader.style.display = 'none';
 
-            try {
-              await set(ref(db, `tracks/${trackingId}`), { 
-                lat, 
-                lng, 
-                ts: Date.now() 
-              });
-            } catch (e) {
-              console.error('Firebase write error:', e);
-            }
+            await throttledDbUpdate(lat, lng);
           },
           (err) => {
             loader.style.display = 'none';
@@ -310,10 +374,16 @@
             }
             
             showMessage(errorMsg);
+            
+            // Revert UI on error
+            startBtn.classList.remove('hidden');
+            startBtn.disabled = false;
+            shareBtn.classList.add('hidden');
+            stopBtn.classList.add('hidden');
           },
           {
             enableHighAccuracy: true,
-            maximumAge: 1000,
+            maximumAge: 5000,
             timeout: 20000
           }
         );
@@ -321,6 +391,8 @@
 
       shareBtn.addEventListener('click', async () => {
         const link = `${window.location.origin}${window.location.pathname}?track=${trackingId}`;
+        
+        shareBtn.disabled = true;
         
         try {
           if (navigator.share) {
@@ -339,14 +411,15 @@
           if (e.name !== 'AbortError') {
             prompt('Copy this link:', link);
           }
+        } finally {
+          shareBtn.disabled = false;
         }
       });
 
       stopBtn.addEventListener('click', async () => {
-        if (watchId) {
-          navigator.geolocation.clearWatch(watchId);
-          watchId = null;
-        }
+        stopBtn.disabled = true;
+        
+        cleanup();
         
         if (trackingId) {
           try {
@@ -374,6 +447,20 @@
         hideMessage();
       });
     }
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+      cleanup();
+    });
+
+    // Handle visibility change (tab switching)
+    document.addEventListener('visibilitychange', () => {
+      if (map && !document.hidden) {
+        setTimeout(() => {
+          map.invalidateSize();
+        }, 100);
+      }
+    });
   </script>
 </body>
 </html>
