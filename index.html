@@ -1,123 +1,93 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bus Live Tracker</title>
+  <link rel="icon" href="data:," />
   <style>
-    body {
-      font-family: 'Poppins', sans-serif;
-      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-      color: #fff;
-      margin: 0;
-      padding: 0;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
+    /* --- Layout & theme --- */
+    :root{--glass: rgba(255,255,255,0.12);--glass-strong: rgba(255,255,255,0.16)}
+    html,body{height:100%;margin:0;font-family:Poppins,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial}
+    body{
+      display:flex;flex-direction:column;min-height:100vh;background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);color:#fff;
+    }
+    header{
+      padding:18px 22px;font-weight:700;font-size:22px;text-align:center;background:rgba(0,0,0,0.25);backdrop-filter:blur(4px);
+      display:flex;align-items:center;gap:10px;justify-content:center;letter-spacing:0.6px;
     }
 
-    header {
-      background: rgba(0, 0, 0, 0.3);
-      padding: 20px;
-      font-size: 26px;
-      font-weight: 700;
-      letter-spacing: 1px;
-      text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-    }
-
+    /* Map container */
     #map {
-      flex-grow: 1;
-      width: 100%;
-      border-radius: 20px;
-      overflow: hidden;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+      flex:1;min-height:420px;border-radius:16px;margin:18px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,0.45);
     }
 
-    #controls {
-      position: fixed;
-      bottom: 25px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(255, 255, 255, 0.15);
-      backdrop-filter: blur(12px);
-      border-radius: 50px;
-      display: flex;
-      justify-content: center;
-      gap: 15px;
-      padding: 10px 25px;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-      z-index: 10;
+    /* loader and overlay */
+    #loader{
+      position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:56px;height:56px;border-radius:50%;
+      border:6px solid rgba(255,255,255,0.2);border-top-color:#fff;animation:spin 0.9s linear infinite;z-index:40;
     }
+    @keyframes spin{0%{transform:translate(-50%,-50%) rotate(0)}100%{transform:translate(-50%,-50%) rotate(360deg)}}
 
-    button {
-      border: none;
-      border-radius: 25px;
-      padding: 12px 24px;
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-      color: #fff;
-      background: linear-gradient(90deg, #00c6ff, #0078ff);
-      transition: all 0.3s ease;
+    #message {
+      position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+      background:linear-gradient(180deg, rgba(0,0,0,0.45), rgba(0,0,0,0.55));
+      padding:22px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,0.6);max-width:92%;text-align:center;z-index:50;
+      display:none;
     }
+    #message p{margin:0 0 12px;font-size:15px}
+    .msg-btn{border:none;padding:10px 14px;border-radius:10px;font-weight:600;cursor:pointer}
 
-    button:hover {
-      transform: scale(1.07);
-      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    /* controls */
+    #controls{
+      position:fixed;left:50%;transform:translateX(-50%);bottom:26px;display:flex;gap:12px;padding:10px 18px;border-radius:999px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));backdrop-filter:blur(8px);z-index:45;
+      box-shadow:0 8px 30px rgba(0,0,0,0.45)
     }
+    button{cursor:pointer;border:none;padding:12px 18px;border-radius:28px;font-weight:700}
+    .btn-primary{background:linear-gradient(90deg,#00c6ff,#0078ff);color:#fff}
+    .btn-danger{background:linear-gradient(90deg,#ff416c,#ff4b2b);color:#fff}
+    .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,0.12);color:#fff}
 
-    button.hidden { display: none; }
-
-    #loader {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      border: 6px solid rgba(255, 255, 255, 0.3);
-      border-top: 6px solid #fff;
-      border-radius: 50%;
-      width: 60px;
-      height: 60px;
-      animation: spin 1s linear infinite;
-      z-index: 5;
-    }
-
-    @keyframes spin {
-      0% { transform: translate(-50%, -50%) rotate(0deg); }
-      100% { transform: translate(-50%, -50%) rotate(360deg); }
-    }
-
-    footer {
-      text-align: center;
-      padding: 15px;
-      font-size: 14px;
-      opacity: 0.85;
-      background: rgba(0, 0, 0, 0.2);
+    .hidden{display:none !important}
+    footer{padding:12px;text-align:center;font-size:13px;background:rgba(0,0,0,0.12)}
+    /* small responsive tweaks */
+    @media (max-width:480px){
+      header{font-size:18px;padding:14px}
+      #controls{gap:8px;padding:8px 12px}
+      button{padding:10px 12px;font-size:14px}
     }
   </style>
 </head>
 <body>
   <header>🚌 <span>Bus Live Tracker</span></header>
-  <div id="map"></div>
-  <div id="loader"></div>
+
+  <div id="map" aria-hidden="false"></div>
+  <div id="loader" style="display:none;"></div>
+
+  <div id="message" role="alert" aria-live="polite">
+    <p id="message-text"></p>
+    <div style="display:flex;gap:10px;justify-content:center">
+      <button id="retryBtn" class="msg-btn btn-primary">Retry Location</button>
+      <button id="showInfoBtn" class="msg-btn btn-ghost">Why Location?</button>
+    </div>
+  </div>
 
   <div id="controls">
-    <button id="startBtn">Start Sharing</button>
-    <button id="shareBtn" class="hidden">Share Link</button>
-    <button id="stopBtn" class="hidden" style="background:linear-gradient(90deg,#ff416c,#ff4b2b)">Stop Sharing</button>
+    <button id="startBtn" class="btn-primary">Start Sharing</button>
+    <button id="shareBtn" class="btn-ghost hidden">Share Link</button>
+    <button id="stopBtn" class="btn-danger hidden">Stop Sharing</button>
   </div>
 
   <footer>© 2025 Bus Tracker | Smooth, Simple & Secure</footer>
 
-  <script>
+  <!-- Firebase (module imports) + app logic -->
+  <script type="module">
+    // --- Firebase v10 modular imports ---
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
     import { getDatabase, ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
 
+    // ---- YOUR FIREBASE CONFIG (kept from your file) ----
     const firebaseConfig = {
       apiKey: "AIzaSyAnDRhdEvaZTPlJr9rmmB7VLn8xUh_E22U",
       authDomain: "buslive-d984a.firebaseapp.com",
@@ -132,76 +102,227 @@
     const app = initializeApp(firebaseConfig);
     const db = getDatabase(app);
 
-    let map, marker, watchId, trackingId;
-    const loader = document.getElementById("loader");
+    // --- DOM elements ---
+    const loader = document.getElementById('loader');
+    const controls = document.getElementById('controls');
+    const startBtn = document.getElementById('startBtn');
+    const shareBtn = document.getElementById('shareBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const messageBox = document.getElementById('message');
+    const messageText = document.getElementById('message-text');
+    const retryBtn = document.getElementById('retryBtn');
+    const showInfoBtn = document.getElementById('showInfoBtn');
 
+    // --- State ---
+    let map = null;
+    let marker = null;
+    let watchId = null;
+    let trackingId = null;
+
+    // Get URL param to determine passenger mode
     const urlParams = new URLSearchParams(window.location.search);
-    const viewId = urlParams.get("track");
+    const viewId = urlParams.get('track');
 
-    function initMap(lat = 23.588, lng = 58.382) {
+    // Default starting coords (Oman-ish) if needed
+    const DEFAULT_LAT = 23.588;
+    const DEFAULT_LNG = 58.382;
+
+    // Create a global initMap so Google Maps callback can call it
+    function initMap(lat = DEFAULT_LAT, lng = DEFAULT_LNG) {
+      // hide message if visible
+      hideMessage();
+
+      // hide loader if showing
       loader.style.display = 'none';
-      map = new google.maps.Map(document.getElementById("map"), {
-        center: { lat, lng },
-        zoom: 14,
-        styles: [
-          { elementType: 'geometry', stylers: [{ color: '#1d2c4d' }] },
-          { elementType: 'labels.text.fill', stylers: [{ color: '#8ec3b9' }] },
-          { elementType: 'labels.text.stroke', stylers: [{ color: '#1a3646' }] },
-          { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#304a7d' }] },
-          { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#17263c' }] }
-        ]
-      });
-      marker = new google.maps.Marker({ position: { lat, lng }, map, icon: 'https://maps.google.com/mapfiles/ms/icons/bus.png' });
+
+      if (!map) {
+        // create the map with dark styling (your chosen style B)
+        map = new google.maps.Map(document.getElementById('map'), {
+          center: { lat, lng },
+          zoom: 14,
+          disableDefaultUI: true,
+          styles: [
+            { elementType: 'geometry', stylers: [{ color: '#1d2c4d' }] },
+            { elementType: 'labels.text.fill', stylers: [{ color: '#8ec3b9' }] },
+            { elementType: 'labels.text.stroke', stylers: [{ color: '#1a3646' }] },
+            { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#304a7d' }] },
+            { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#17263c' }] }
+          ]
+        });
+
+        // marker with bus icon
+        marker = new google.maps.Marker({
+          position: { lat, lng },
+          map,
+          icon: 'https://maps.google.com/mapfiles/ms/icons/bus.png',
+          title: 'Bus Location'
+        });
+      } else {
+        // update map if it exists
+        map.setCenter({ lat, lng });
+        marker.setPosition({ lat, lng });
+      }
+    }
+    // expose globally for Google Maps callback
+    window.initMap = initMap;
+
+    // Utility: show friendly message overlay
+    function showMessage(text) {
+      messageText.textContent = text;
+      messageBox.style.display = 'block';
+      document.getElementById('map').style.filter = 'blur(3px)';
+    }
+    function hideMessage() {
+      messageBox.style.display = 'none';
+      document.getElementById('map').style.filter = 'none';
     }
 
+    // Passenger flow: if viewId is present, hide controls and just listen to Firebase for that track
     if (viewId) {
-      document.getElementById("controls").style.display = "none";
+      controls.style.display = 'none';
+      loader.style.display = 'block'; // show loader while waiting first point
       onValue(ref(db, `tracks/${viewId}`), (snapshot) => {
         const data = snapshot.val();
-        if (data) {
+        if (data && data.lat !== undefined && data.lng !== undefined) {
           const { lat, lng } = data;
           if (!map) initMap(lat, lng);
           marker.setPosition({ lat, lng });
           map.panTo({ lat, lng });
         } else {
-          alert("Tracking ended.");
+          // tracking ended or doesn't exist
+          alert('Tracking ended or invalid link.');
+          loader.style.display = 'none';
         }
+      }, (err) => {
+        console.error('Firebase read error', err);
+        alert('Unable to read tracking data.');
+        loader.style.display = 'none';
       });
     } else {
-      document.getElementById("startBtn").addEventListener("click", () => {
-        trackingId = Math.random().toString(36).substring(2, 10);
-        document.getElementById("shareBtn").classList.remove("hidden");
-        document.getElementById("stopBtn").classList.remove("hidden");
-        document.getElementById("startBtn").classList.add("hidden");
+      // Driver mode (show controls)
+      // Start Sharing
+      startBtn.addEventListener('click', async () => {
+        // generate a short id
+        trackingId = Math.random().toString(36).slice(2, 10);
 
-        if (navigator.geolocation) {
-          watchId = navigator.geolocation.watchPosition((pos) => {
-            const { latitude, longitude } = pos.coords;
+        // update UI
+        shareBtn.classList.remove('hidden');
+        stopBtn.classList.remove('hidden');
+        startBtn.classList.add('hidden');
+
+        // Request geolocation and begin watching position
+        if (!('geolocation' in navigator)) {
+          showMessage('Your device does not support geolocation.');
+          return;
+        }
+
+        // show loader while waiting first position
+        loader.style.display = 'block';
+        try {
+          watchId = navigator.geolocation.watchPosition(async (pos) => {
+            const latitude = pos.coords.latitude;
+            const longitude = pos.coords.longitude;
+
+            // initialize map on first fix
             if (!map) initMap(latitude, longitude);
+
+            // update marker + map
             marker.setPosition({ lat: latitude, lng: longitude });
             map.panTo({ lat: latitude, lng: longitude });
-            set(ref(db, `tracks/${trackingId}`), { lat: latitude, lng: longitude });
+
+            // push to firebase
+            try {
+              await set(ref(db, `tracks/${trackingId}`), { lat: latitude, lng: longitude, ts: Date.now() });
+            } catch (e) {
+              console.error('Firebase write failed', e);
+            } finally {
+              loader.style.display = 'none';
+            }
+          }, (err) => {
+            // handle geolocation errors
+            loader.style.display = 'none';
+            console.warn('geolocation error', err);
+            if (err.code === 1) { // PERMISSION_DENIED
+              showMessage('Location permission denied. The driver must allow location access to share live position. Use Retry to try again.');
+            } else if (err.code === 2) {
+              showMessage('Unable to determine location. Make sure GPS is enabled and you have a good signal.');
+            } else {
+              showMessage('Location error. Please try again.');
+            }
+          }, {
+            enableHighAccuracy: true,
+            maximumAge: 1000,
+            timeout: 20000
           });
-        } else {
-          alert("Geolocation not supported.");
+        } catch (e) {
+          console.error(e);
+          loader.style.display = 'none';
+          showMessage('Unable to start location sharing.');
         }
       });
 
-      document.getElementById("shareBtn").addEventListener("click", () => {
+      // Share button - copies tracking link
+      shareBtn.addEventListener('click', async () => {
         const link = `${window.location.origin}${window.location.pathname}?track=${trackingId}`;
-        navigator.clipboard.writeText(link);
-        alert("Tracking link copied! Share it with your passengers:\n" + link);
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          try {
+            await navigator.clipboard.writeText(link);
+            alert('Tracking link copied! Share it with your passengers:\n' + link);
+          } catch (e) {
+            // fallback
+            prompt('Copy this link:', link);
+          }
+        } else {
+          prompt('Copy this link:', link);
+        }
       });
 
-      document.getElementById("stopBtn").addEventListener("click", () => {
-        if (watchId) navigator.geolocation.clearWatch(watchId);
-        remove(ref(db, `tracks/${trackingId}`));
-        alert("Stopped sharing location.");
+      // Stop sharing
+      stopBtn.addEventListener('click', async () => {
+        if (watchId) {
+          navigator.geolocation.clearWatch(watchId);
+          watchId = null;
+        }
+        if (trackingId) {
+          try {
+            await remove(ref(db, `tracks/${trackingId}`));
+          } catch (e) {
+            console.warn('Error removing tracking node', e);
+          }
+          trackingId = null;
+        }
+        alert('Stopped sharing location.');
         window.location.reload();
+      });
+
+      // Retry button when permission denied or other geolocation issues
+      retryBtn.addEventListener('click', () => {
+        hideMessage();
+        // If driver has started sharing, re-trigger Start Sharing behavior
+        if (startBtn.classList.contains('hidden') && trackingId) {
+          // simulate click on start (re-init geolocation)
+          startBtn.classList.remove('hidden');
+          shareBtn.classList.add('hidden');
+          stopBtn.classList.add('hidden');
+          // reload page to reset flow (simplest reliable path)
+          window.location.reload();
+        } else {
+          // otherwise simulate start button click to request permission again
+          startBtn.click();
+        }
+      });
+
+      // Info button to explain why location is needed
+      showInfoBtn.addEventListener('click', () => {
+        alert('This app needs your location to share the bus live position with passengers. No accounts are required—only your permission to read GPS. You can stop sharing anytime.');
       });
     }
   </script>
 
-  <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBfYvGqnZ9J3g0ufEHkvV_tgyUgd5rl43Y&callback=initMap"></script>
+  <!-- Google Maps script -->
+  <!-- NOTE: callback=initMap calls the global function we expose above (window.initMap) -->
+  <script async defer
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBfYvGqnZ9J3g0ufEHkvV_tgyUgd5rl43Y&callback=initMap">
+  </script>
 </body>
 </html>
