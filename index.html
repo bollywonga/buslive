@@ -280,10 +280,12 @@
       let staleTimeout = null;
       const STALE_THRESHOLD = 60000; // 60 seconds
       
-      dbListener = ref(db, `tracks/${viewId}`);
+      const trackRef = ref(db, `tracks/${viewId}`);
       
-      onValue(dbListener, (snapshot) => {
+      const handleSnapshot = (snapshot) => {
         const data = snapshot.val();
+        
+        console.log('Received data:', data); // Debug log
         
         // Clear stale timeout
         if (staleTimeout) {
@@ -291,8 +293,15 @@
           staleTimeout = null;
         }
         
-        if (data && data.lat !== undefined && data.lng !== undefined) {
+        if (data && typeof data.lat === 'number' && typeof data.lng === 'number') {
           const { lat, lng, ts } = data;
+          
+          // Hide loader and show status
+          if (firstUpdate) {
+            loader.style.display = 'none';
+            statusBanner.classList.add('show');
+            firstUpdate = false;
+          }
           
           // Check if data is stale
           const now = Date.now();
@@ -301,12 +310,7 @@
           if (dataAge > STALE_THRESHOLD) {
             statusText.textContent = 'Bus location may be outdated';
           } else {
-            statusText.textContent = 'Bus is live';
-          }
-          
-          if (firstUpdate) {
-            loader.style.display = 'none';
-            firstUpdate = false;
+            statusText.textContent = 'Bus is live 🟢';
           }
           
           updateLocation(lat, lng, !firstUpdate);
@@ -321,12 +325,19 @@
           statusBanner.classList.remove('show');
           showMessage('Tracking has ended or the link is invalid. Please ask the driver for a new link.');
         }
-      }, (err) => {
+      };
+      
+      const handleError = (err) => {
         console.error('Firebase error:', err);
         loader.style.display = 'none';
         statusBanner.classList.remove('show');
         showMessage('Unable to connect to tracking. Please check your internet connection and try refreshing the page.');
-      });
+      };
+      
+      onValue(trackRef, handleSnapshot, handleError);
+      
+      // Store reference for cleanup
+      dbListener = trackRef;
     } else {
       // Driver mode
       createMap(DEFAULT_LAT, DEFAULT_LNG);
@@ -417,21 +428,42 @@
       });
 
       stopBtn.addEventListener('click', async () => {
+        if (!confirm('Are you sure you want to stop sharing your location?')) {
+          return;
+        }
+        
         stopBtn.disabled = true;
+        loader.style.display = 'block';
         
-        cleanup();
+        // Stop geolocation first
+        if (watchId) {
+          navigator.geolocation.clearWatch(watchId);
+          watchId = null;
+        }
         
+        // Remove from database
         if (trackingId) {
           try {
             await remove(ref(db, `tracks/${trackingId}`));
+            console.log('Track removed successfully');
           } catch (e) {
-            console.warn('Error removing track:', e);
+            console.error('Error removing track:', e);
           }
           trackingId = null;
         }
         
-        alert('Location sharing stopped.');
-        location.reload();
+        // Cleanup listeners
+        cleanup();
+        
+        loader.style.display = 'none';
+        alert('Location sharing stopped successfully.');
+        
+        // Reset UI
+        startBtn.classList.remove('hidden');
+        startBtn.disabled = false;
+        shareBtn.classList.add('hidden');
+        stopBtn.classList.add('hidden');
+        stopBtn.disabled = false;
       });
 
       retryBtn.addEventListener('click', () => {
