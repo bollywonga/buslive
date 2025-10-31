@@ -1,0 +1,56 @@
+/* Simple centered layout and map sizing */
+:root{
+  --max-width: 880px;
+}
+body{
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+  margin:0;
+  padding:20px;
+  background:#f7f8fa;
+  color:#222;
+  display:flex;
+  justify-content:center;
+}
+.container{
+  width:100%;
+  max-width:var(--max-width);
+}
+h1{
+  text-align:center;
+  margin:0 0 12px 0;
+}
+.map{
+  height:60vh; /* responsive height */
+  min-height:360px;
+  width:100%;
+  border-radius:8px;
+  box-shadow:0 6px 18px rgba(20,20,40,0.08);
+  overflow:hidden;
+}
+.controls{
+  display:flex;
+  gap:10px;
+  justify-content:center;
+  margin-top:12px;
+}
+button{
+  padding:10px 14px;
+  border-radius:6px;
+  border:1px solid #d1d5db;
+  background:white;
+  cursor:pointer;
+  font-weight:600;
+}
+button:disabled{
+  opacity:0.6;
+  cursor:not-allowed;
+}
+.note{
+  text-align:center;
+  color:#555;
+  margin-top:8px;
+}
+@media (max-width:480px){
+  .map{height:54vh}
+  button{padding:9px 10px}
+}

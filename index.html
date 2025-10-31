@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Location - Share</title>
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="container">
+    <h1>Share My Live Location</h1>
+
+    <div id="map" class="map"></div>
+
+    <div class="controls">
+      <button id="startBtn">Start Sharing My Location</button>
+      <button id="stopBtn" disabled>Stop Sharing</button>
+      <button id="shareBtn">Share</button>
+    </div>
+
+    <p class="note">Tip: Click "Share" to copy a link you can send to others. They'll see your live location on the map.</p>
+  </main>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Main script as module - imports Firebase modules via CDN -->
+  <script type="module" src="script.js"></script>
+</body>
+</html>
