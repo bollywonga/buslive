@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bus Location Tracker - Driver</title>
+    <link rel="stylesheet" href="assets/styles/driver.css">
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-database.js"></script>
+    <script src="assets/js/config.js" defer></script>
+    <script src="assets/js/firebase.js" defer></script>
+    <script src="assets/js/driver.js" defer></script>
+    <script src="assets/js/map.js" defer></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Bus Location Tracker</h1>
+        <button id="start-sharing">Start Sharing My Location</button>
+        <button id="share-link" disabled>Share Link</button>
+        <button id="stop-sharing" disabled>Stop Sharing</button>
+        <div id="link-container" style="display: none;">
+            <p>Share this link with passengers:</p>
+            <input type="text" id="generated-link" readonly>
+        </div>
+        <div id="map" style="height: 400px;"></div>
+    </div>
+    <script src="assets/js/utils.js" defer></script>
+</body>
+</html>

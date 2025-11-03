@@ -1,0 +1,51 @@
+.driver-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background-color: #f0f0f0;
+}
+
+.button {
+    padding: 15px 30px;
+    margin: 10px;
+    font-size: 16px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.start-sharing {
+    background-color: #4CAF50; /* Green */
+    color: white;
+}
+
+.start-sharing:hover {
+    background-color: #45a049;
+}
+
+.stop-sharing {
+    background-color: #f44336; /* Red */
+    color: white;
+}
+
+.stop-sharing:hover {
+    background-color: #e53935;
+}
+
+.link-container {
+    margin-top: 20px;
+    font-size: 18px;
+    text-align: center;
+}
+
+.link {
+    color: #2196F3; /* Blue */
+    text-decoration: none;
+}
+
+.link:hover {
+    text-decoration: underline;
+}
